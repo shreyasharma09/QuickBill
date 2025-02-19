@@ -20,11 +20,21 @@ Routes.get("/HealthCheckApi", async (req, resp) => {
 
 Routes.post("/verifyuser",checkuserdetails, async (req, resp) => {
     try {
-        const { name, phone, email, password, address, state, city ,role} = req.body
+        const { name, phone, email, password, address, state, city ,role ,executiveof} = req.body
         if (!name || !phone || !email || !password || !address || !state || !state==="None" || !city || !city==="None" || !role) return HandleSuccessResponse(resp, 404, "Field is empty")
+
+        const userRoleChecker=["Shopkeeper","Executive"]
+        if(!userRoleChecker.includes(role)) return HandleSuccessResponse(resp,404,"This role is not exists") //includes check the role ki vo shopkeeper y executive h y ni
+      
         const existinguser = await User.findOne({ email })
         if (existinguser) return HandleSuccessResponse(resp, 400, "Account already exists")
 
+        if(role==="Executive"){
+          if(!executiveof) return HandleSuccessResponse(resp,404,"Select the Shopkeeper")
+          if(!mongoose.isValidObjectId(executiveof)) return HandleSuccessResponse(resp,401,"Invalid Shopkeeper id")
+          const existingShopkeeper=await Shopkeeper.findOne({_id:executiveof}) // check krnge ke executiveof m shopkeeper ki id h y ni
+          if(!existingShopkeeper) return HandleSuccessResponse(resp,404,"The Shopkeeper belong to this id doesn't exist")
+        }      
         //generate otp,send to email,verify it
         //to Generate ===>otpservice se kia h... call yha krenge
         const otp = generateotp(email)    //is email ke lie otp generate kr dega
@@ -38,21 +48,35 @@ Routes.post("/verifyuser",checkuserdetails, async (req, resp) => {
 
 Routes.post("/createuser",checkuserdetails, async (req, resp) => {
     try {
-        const { name, phone, email, password, address, state, city, role, otp } = req.body
+        const { name, phone, email, password, address, state, city, role, otp ,executiveof } = req.body
         if (!name || !phone || !email || !password || !address || !state || !state==="None" || !city || !city==="None" || !role) return HandleSuccessResponse(resp, 404, "Field is empty")
         if (!otp) return HandleSuccessResponse(resp, 404, "Enter the otp")
 
+        const userRoleChecker=["Shopkeeper","Executive"]
+        if(!userRoleChecker.includes(role)) return HandleSuccessResponse(resp,404,"This role is not exists")      
+
         const existinguser = await User.findOne({ email })
         if (existinguser) return HandleSuccessResponse(resp, 400, "Account already exists")
+
+        if(role==="Executive"){
+          if(!executiveof) return HandleSuccessResponse(resp,404,"Select the Shopkeeper")
+          if(!mongoose.isValidObjectId(executiveof)) return HandleSuccessResponse(resp,401,"Invalid Shopkeeper id")
+          const existingShopkeeper=await Shopkeeper.findOne({_id:executiveof})
+          if(!existingShopkeeper) return HandleSuccessResponse(resp,404,"The Shopkeeper belong to this id is not exists")
+         }    
 
         //verify otp then create acc
         const response = verifyotp(email, otp)
         if (!response.status) return HandleSuccessResponse(resp, 404, response.message)
 
-        const result = await User.create({ name, phone, email, password, address, state, city, role })
-
-        return HandleSuccessResponse(resp, 201, "Acc created successfully", result)
-
+        if(role==="Shopkeeper"){
+          const result = await Shopkeeper.create({name,phone,email,password,address,city,state});
+          return HandleSuccessResponse(resp,201,"Shopkeeper Account created successfully",result);
+          }
+        if(role==="Executive"){
+          const result = await Executive.create({name,phone,email,password,address,city,state,executiveof});
+          return HandleSuccessResponse(resp,201,"Executive Account created successfully",result); 
+          }
     } catch (error) {
         return HandleSuccessResponse(resp, 500, "Internal Server Error", null, error)
     }
